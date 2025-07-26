@@ -3,6 +3,7 @@ name = "cand"
 version = "0.1.0"
 edition = "2024"
 readme = "README.md"
+description = "Beautiful embedded-first Rust logging library for ESP32 to servers with colorful output and zero-panic design."
 repository = "https://github.com/CosmoBunny/cand.git"
 license = "MIT"
 keywords = ["embedded", "logging", "no-std", "esp32"]
