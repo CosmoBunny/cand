@@ -20,7 +20,7 @@
 
 ```toml
 [dependencies]
-cand = "0.1"
+cand = "0.1.1"
 ```
 
 ```rust
@@ -42,7 +42,7 @@ fn main() {
 
 ```toml
 [dependencies]
-cand = { version = "0.1", default-feature=false, features=["colors"] }
+cand = { version = "0.1.1", default-feature=false, features=["colors"] }
 ```
 
 
