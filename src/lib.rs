@@ -136,9 +136,7 @@ impl TimeProvider for Instant {
 }
 
 impl TimeProvider for () {
-    fn now() -> Self {
-        ()
-    }
+    fn now() -> Self {}
     fn elapsed(&self) -> core::time::Duration {
         core::time::Duration::ZERO
     }
@@ -210,7 +208,7 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         match tryresult {
             Ok(x) => (x, self),
             Err(err) => {
-                self.log_err(err);
+                self.log(StatusLevel::Warning, err);
                 redirectfn(self);
                 loop {}
             }
@@ -361,9 +359,7 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         match tryresult {
             Ok(x) => (x, self),
             Err(err) => {
-                // Note: In no_std, can't format to string easily
-                // So use the uDebug version which might show quotes
-                self.log(StatusLevel::Error, UDebugStr("Error occurred"));
+                self.log(StatusLevel::Warning, err);
                 redirectfn(self);
                 loop {}
             }
