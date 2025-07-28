@@ -49,7 +49,7 @@ fn showcase_cand() {
     let sensor_result: Result<f32, &str> = Err("sensor disconnected");
 
     #[cfg(feature = "std")]
-    let (_, mut logger) = logger.try_run(sensor_result, |mut logger| {
+    let (_, mut logger) = logger.try_get(sensor_result, |mut logger| {
         logger.log_warn("  🔄 Auto-recovery initiated");
         logger.log_info("  💾 Switching to backup sensor");
         logger.log_ok("  ✅ Failover complete");
