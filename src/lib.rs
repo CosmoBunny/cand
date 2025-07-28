@@ -10,31 +10,25 @@ use core::time::Duration;
 #[cfg(feature = "ufmt")]
 use ufmt::{uDebug, uWrite};
 
-#[cfg(feature = "colors")]
-const RESET: &str = "\x1b[0m";
-#[cfg(feature = "colors")]
-const LIGHT_GREEN: &str = "\x1b[92m";
-#[cfg(feature = "colors")]
-const LIGHT_BLUE: &str = "\x1b[94m";
-#[cfg(feature = "colors")]
-const LIGHT_RED: &str = "\x1b[91m";
-#[cfg(feature = "colors")]
-const LIGHT_YELLOW: &str = "\x1b[93m";
-#[cfg(feature = "colors")]
-const RED: &str = "\x1b[31m";
+macro_rules! define_colors {
+    ($($name:ident => $color:expr),* $(,)?) => {
+        $(
+            #[cfg(feature = "colors")]
+            const $name: &str = $color;
+            #[cfg(not(feature = "colors"))]
+            const $name: &str = "";
+        )*
+    };
+}
 
-#[cfg(not(feature = "colors"))]
-const RESET: &str = "";
-#[cfg(not(feature = "colors"))]
-const LIGHT_GREEN: &str = "";
-#[cfg(not(feature = "colors"))]
-const LIGHT_BLUE: &str = "";
-#[cfg(not(feature = "colors"))]
-const LIGHT_RED: &str = "";
-#[cfg(not(feature = "colors"))]
-const LIGHT_YELLOW: &str = "";
-#[cfg(not(feature = "colors"))]
-const RED: &str = "";
+define_colors! {
+    RESET => "\x1b[0m",
+    LIGHT_GREEN => "\x1b[92m",
+    LIGHT_BLUE => "\x1b[94m",
+    LIGHT_RED => "\x1b[91m",
+    LIGHT_YELLOW => "\x1b[93m",
+    RED => "\x1b[31m",
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum StatusLevel {
@@ -57,6 +51,19 @@ impl StatusLevel {
     }
 }
 
+macro_rules! impl_status_format {
+    (
+        $self:expr,$formatter:ident, $write_macro:ident,
+        $($variant:ident => $symbol:expr, $color:expr),* $(,)?
+    ) => {
+        match $self {
+            $(
+                StatusLevel::$variant => $write_macro!($formatter, "{}{}&:{}", $color, $symbol, RESET)?,
+            )*
+        }
+    };
+}
+
 #[cfg(feature = "ufmt")]
 impl uDebug for StatusLevel {
     fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
@@ -65,13 +72,14 @@ impl uDebug for StatusLevel {
     {
         use ufmt::uwrite;
 
-        match self {
-            StatusLevel::Ok => uwrite!(f, "{}O&:{}", LIGHT_GREEN, RESET)?,
-            StatusLevel::Info => uwrite!(f, "{}I&:{}", LIGHT_BLUE, RESET)?,
-            StatusLevel::Error => uwrite!(f, "{}E&:{}", LIGHT_RED, RESET)?,
-            StatusLevel::Warning => uwrite!(f, "{}W&:{}", LIGHT_YELLOW, RESET)?,
-            StatusLevel::Critical => uwrite!(f, "{}C&:{}", RED, RESET)?,
-        }
+        impl_status_format!(self,f, uwrite,
+            Ok => "O", LIGHT_GREEN,
+            Info => "I", LIGHT_BLUE,
+            Error => "E", LIGHT_RED,
+            Warning => "W", LIGHT_YELLOW,
+            Critical => "C", RED,
+        );
+
         Ok(())
     }
 }
@@ -79,13 +87,13 @@ impl uDebug for StatusLevel {
 #[cfg(not(feature = "ufmt"))]
 impl Debug for StatusLevel {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            StatusLevel::Ok => write!(f, "{}O&:{}", LIGHT_GREEN, RESET)?,
-            StatusLevel::Info => write!(f, "{}I&:{}", LIGHT_BLUE, RESET)?,
-            StatusLevel::Error => write!(f, "{}E&:{}", LIGHT_RED, RESET)?,
-            StatusLevel::Warning => write!(f, "{}W&:{}", LIGHT_YELLOW, RESET)?,
-            StatusLevel::Critical => write!(f, "{}C&:{}", RED, RESET)?,
-        }
+        impl_status_format!(self,f, write,
+            Ok => "O", LIGHT_GREEN,
+            Info => "I", LIGHT_BLUE,
+            Error => "E", LIGHT_RED,
+            Warning => "W", LIGHT_YELLOW,
+            Critical => "C", RED,
+        );
         Ok(())
     }
 }
@@ -145,7 +153,140 @@ impl TimeProvider for () {
     }
 }
 
+#[cfg(not(feature = "ufmt"))]
+macro_rules! impl_log_methods {
+    ($($method:ident => $level:expr),* $(,)?) => {
+        $(
+            pub fn $method(&mut self, args: impl Display) {
+                self.logdisp($level, args);
+            }
+        )*
+    };
+}
+
+macro_rules! impl_try_get {
+    ($error_bound:path, owned) => {
+        // For Logger - takes ownership
+        #[cfg(feature = "std")]
+        pub fn try_get<O, E: $error_bound>(
+            mut self, // Takes ownership
+            tryresult: Result<O, E>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            match tryresult {
+                Ok(x) => (x, self),
+                Err(err) => {
+                    self.log(StatusLevel::Warning, err);
+                    redirectfn(self);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        #[cfg(not(feature = "std"))]
+        pub fn try_get<O, E: $error_bound>(
+            mut self, // Takes ownership
+            tryresult: Result<O, E>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            match tryresult {
+                Ok(x) => (x, self),
+                Err(err) => {
+                    self.log(StatusLevel::Warning, err);
+                    redirectfn(self);
+                    loop {}
+                }
+            }
+        }
+    };
+
+    ($error_bound:path, cloned) => {
+        // For MultiLogger - needs cloning
+        #[cfg(feature = "std")]
+        pub fn try_get<O, E: $error_bound>(
+            &mut self, // Takes reference
+            tryresult: Result<O, E>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            let mut new_self = self.clone();
+            match tryresult {
+                Ok(x) => (x, new_self),
+                Err(err) => {
+                    new_self.log(StatusLevel::Warning, err);
+                    redirectfn(new_self);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        #[cfg(not(feature = "std"))]
+        pub fn try_get<O, E: $error_bound>(
+            &mut self, // Takes reference
+            tryresult: Result<O, E>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            let mut new_self = self.clone();
+            match tryresult {
+                Ok(x) => (x, new_self),
+                Err(err) => {
+                    new_self.log(StatusLevel::Warning, err);
+                    redirectfn(new_self);
+                    loop {}
+                }
+            }
+        }
+    };
+}
+
+/// Same as Logger but Clonable for tryrun
+#[derive(Clone)]
+pub struct MultiLogger<T: TimeProvider + Clone, S: StorageProvider + Clone>(pub T, pub S);
+
 pub struct Logger<T: TimeProvider, S: StorageProvider>(pub T, pub S);
+
+#[cfg(not(feature = "ufmt"))]
+impl<'a, T: TimeProvider + Clone, S: StorageProvider + Clone> MultiLogger<T, S>
+where
+    Self: Clone,
+{
+    pub fn log(&mut self, level: StatusLevel, args: impl Debug) {
+        self.1.write_data(format_args!(
+            "{:?}{} {}{:?}{}\n",
+            level,
+            TimeFormatter(&self.0),
+            level.to_color(),
+            args,
+            RESET
+        ));
+    }
+
+    pub fn logdisp(&mut self, level: StatusLevel, args: impl Display) {
+        self.1.write_data(format_args!(
+            "{:?}{} {}{}{}\n",
+            level,
+            TimeFormatter(&self.0),
+            level.to_color(),
+            args,
+            RESET
+        ));
+    }
+
+    impl_log_methods! {
+        log_err => StatusLevel::Error,
+        log_ok => StatusLevel::Ok,
+        log_warn => StatusLevel::Warning,
+        log_info => StatusLevel::Info,
+    }
+
+    pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
+        // Returns nothing
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
+        }
+    }
+
+    impl_try_get!(core::fmt::Debug, cloned);
+}
 
 #[cfg(not(feature = "ufmt"))]
 impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
@@ -171,49 +312,21 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         ));
     }
 
-    pub fn log_err(&mut self, args: impl Display) {
-        self.logdisp(StatusLevel::Error, args);
-    }
-    pub fn log_ok(&mut self, args: impl Display) {
-        self.logdisp(StatusLevel::Ok, args);
-    }
-    pub fn log_warn(&mut self, args: impl Display) {
-        self.logdisp(StatusLevel::Warning, args);
-    }
-    pub fn log_info(&mut self, args: impl Display) {
-        self.logdisp(StatusLevel::Info, args);
+    impl_log_methods! {
+        log_err => StatusLevel::Error,
+        log_ok => StatusLevel::Ok,
+        log_warn => StatusLevel::Warning,
+        log_info => StatusLevel::Info,
     }
 
-    #[cfg(feature = "std")]
-    pub fn try_run<O, E: core::fmt::Debug>(
-        mut self,
-        tryresult: Result<O, E>,
-        redirectfn: fn(Self) -> (),
-    ) -> (O, Self) {
-        match tryresult {
-            Ok(x) => (x, self),
-            Err(err) => {
-                self.log(StatusLevel::Error, err);
-                redirectfn(self);
-                std::process::exit(1);
-            }
+    pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
+        // Returns nothing
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
         }
     }
-    #[cfg(not(feature = "std"))]
-    pub fn try_run<O, E: core::fmt::Debug>(
-        mut self,
-        tryresult: Result<O, E>,
-        redirectfn: fn(Self) -> (),
-    ) -> (O, Self) {
-        match tryresult {
-            Ok(x) => (x, self),
-            Err(err) => {
-                self.log(StatusLevel::Warning, err);
-                redirectfn(self);
-                loop {}
-            }
-        }
-    }
+
+    impl_try_get!(core::fmt::Debug, owned);
 }
 
 // Helper struct to use TimeProvider's write method with Display trait
@@ -295,6 +408,17 @@ impl uDebug for UDebugDuration {
 }
 
 #[cfg(feature = "ufmt")]
+macro_rules! impl_log_methods_ufmt {
+    ($($method:ident => $level:expr),* $(,)?) => {
+        $(
+            pub fn $method(&mut self, args: &str) {
+                self.logdisp($level, args);
+            }
+        )*
+    };
+}
+
+#[cfg(feature = "ufmt")]
 impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
     pub fn log(&mut self, level: StatusLevel, args: impl uDebug) {
         let timestamp = self.0.elapsed();
@@ -319,50 +443,63 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         self.1.write_data(UDebugStr("\n"));
     }
 
-    pub fn log_err(&mut self, args: &str) {
-        self.logdisp(StatusLevel::Error, args);
-    }
-    pub fn log_ok(&mut self, args: &str) {
-        self.logdisp(StatusLevel::Ok, args);
-    }
-    pub fn log_warn(&mut self, args: &str) {
-        self.logdisp(StatusLevel::Warning, args);
-    }
-    pub fn log_info(&mut self, args: &str) {
-        self.logdisp(StatusLevel::Info, args);
+    impl_log_methods_ufmt! {
+        log_err => StatusLevel::Error,
+        log_ok => StatusLevel::Ok,
+        log_warn => StatusLevel::Warning,
+        log_info => StatusLevel::Info,
     }
 
-    #[cfg(feature = "std")]
-    pub fn try_run<O, E: core::fmt::Debug>(
-        mut self,
-        tryresult: Result<O, E>,
-        redirectfn: fn(Self) -> (),
-    ) -> (O, Self) {
-        match tryresult {
-            Ok(x) => (x, self),
-            Err(err) => {
-                // Use UDebugStr wrapper for clean error display
-                let err_str = format!("{:?}", err);
-                self.log_err(&err_str);
-                redirectfn(self);
-                std::process::exit(1);
-            }
+    pub fn try_run<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>) {
+        // Returns nothing
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
         }
     }
 
-    #[cfg(not(feature = "std"))]
-    pub fn try_run<O, E: core::fmt::Debug>(
-        mut self,
-        tryresult: Result<O, E>,
-        redirectfn: fn(Self) -> (),
-    ) -> (O, Self) {
-        match tryresult {
-            Ok(x) => (x, self),
-            Err(err) => {
-                self.log(StatusLevel::Warning, err);
-                redirectfn(self);
-                loop {}
-            }
+    impl_try_get!(ufmt::uDebug, owned);
+}
+#[cfg(feature = "ufmt")]
+impl<'a, T: TimeProvider + Clone, S: StorageProvider + Clone> MultiLogger<T, S>
+where
+    Self: Clone,
+{
+    pub fn log(&mut self, level: StatusLevel, args: impl uDebug) {
+        let timestamp = self.0.elapsed();
+        // Format timestamp and level + args + write to store_log
+
+        self.1.write_data(level);
+        self.1.write_data(UDebugDuration(timestamp));
+        self.1.write_data(UDebugStr(level.to_color()));
+        self.1.write_data(args);
+        self.1.write_data(UDebugStr(RESET));
+        self.1.write_data(UDebugStr("\n"));
+    }
+
+    pub fn logdisp(&mut self, level: StatusLevel, args: &str) {
+        let timestamp = self.0.elapsed();
+
+        self.1.write_data(level);
+        self.1.write_data(UDebugDuration(timestamp));
+        self.1.write_data(UDebugStr(level.to_color()));
+        self.1.write_data(UDebugStr(args)); // Clean string, no quotes
+        self.1.write_data(UDebugStr(RESET));
+        self.1.write_data(UDebugStr("\n"));
+    }
+
+    impl_log_methods_ufmt! {
+        log_err => StatusLevel::Error,
+        log_ok => StatusLevel::Ok,
+        log_warn => StatusLevel::Warning,
+        log_info => StatusLevel::Info,
+    }
+
+    pub fn try_run<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>) {
+        // Returns nothing
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
         }
     }
+
+    impl_try_get!(ufmt::uDebug, cloned);
 }

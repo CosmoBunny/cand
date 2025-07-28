@@ -7,7 +7,7 @@ fn main() {
     // Time visible true according Instant. () for normal printing.
     let mut logger = Logger(Instant::now(), ());
 
-    for i in 1..=10_000 {
+    for i in 1..=1_000_000 {
         logger.log_info(format!("Logger no: {}", i));
     }
 
