@@ -9,7 +9,7 @@
 | :-- | :-- | :-- |
 | 🎨 **Smart Colors** | Spot issues instantly | `logger.log_err("❌ Clear visibility")` |
 | ⚡ **no_std Ready** | Runs everywhere | ESP32, STM32, WASM, bare metal |
-| 🛡️ **Never Panic** | Production safe | `try_run()` handles all errors gracefully |
+| 🛡️ **Never Panic** | Production safe | `try_run()` and `try_get()` handles all errors gracefully |
 | 🔌 **Pluggable** | Your infrastructure | Files, UART, RTT, databases, networks |
 | 📦 **Tiny Binary** | <1KB overhead | Perfect for memory-constrained devices |
 | 🎯 **2-Line Setup** | Start in seconds | Works out of the box |
@@ -75,7 +75,7 @@ fn main() {
   let logger = Logger(std::time::Instant::now(), ());
     
   // Automatic error logging and graceful recovery
-  let (data, recovered_logger) = logger.try_run(
+  let (data, recovered_logger) = logger.try_get(
     risky_operation(),
     fallback_handler
   );
@@ -113,8 +113,7 @@ impl StorageProvider for UartStorage {
 ## 📊 **Performance**
 
 - **⚡ Zero allocations** with `ufmt` feature
-- **🚀 178147+ logs/second** on example benchmark
-
+- **🚀 1_000_000 logs in 4.2s** on example benchmark with decent release
 
 ## 🏗️ **API Reference**
 
@@ -133,7 +132,7 @@ Check out the [examples](examples/) directory:
 
 - **[`basic_error_handling`](examples/basic_error_handling.rs)** - Error recovery patterns
 - **[`sample`](examples/sample.rs)** - Feature showcase and demo
-- **[`benchmark`](examples/benchmark.rs)** - Benchmark of 10_000 logs print
+- **[`benchmark`](examples/benchmark.rs)** - Benchmark of 1_000_000 logs print
 
 Run examples:
 
