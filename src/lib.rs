@@ -108,13 +108,13 @@ use core::fmt::Arguments;
 #[cfg(not(feature = "ufmt"))]
 pub trait StorageProvider {
     /// Write log data directly - single responsibility
-    fn write_data(&mut self, args: Arguments);
+    fn write_data(&mut self, args: Arguments, debuglevel: &StatusLevel);
 }
 
 #[cfg(feature = "std")]
 #[cfg(not(feature = "ufmt"))]
 impl StorageProvider for () {
-    fn write_data(&mut self, args: Arguments<'_>) {
+    fn write_data(&mut self, args: Arguments<'_>, _debuglevel: &StatusLevel) {
         print!("{args}")
     }
 }
@@ -250,25 +250,31 @@ where
     Self: Clone,
 {
     pub fn log(&mut self, level: StatusLevel, args: impl Debug) {
-        self.1.write_data(format_args!(
-            "{:?}{} {}{:?}{}\n",
-            level,
-            TimeFormatter(&self.0),
-            level.to_color(),
-            args,
-            RESET
-        ));
+        self.1.write_data(
+            format_args!(
+                "{:?}{} {}{:?}{}\n",
+                level,
+                TimeFormatter(&self.0),
+                level.to_color(),
+                args,
+                RESET
+            ),
+            &level,
+        );
     }
 
     pub fn logdisp(&mut self, level: StatusLevel, args: impl Display) {
-        self.1.write_data(format_args!(
-            "{:?}{} {}{}{}\n",
-            level,
-            TimeFormatter(&self.0),
-            level.to_color(),
-            args,
-            RESET
-        ));
+        self.1.write_data(
+            format_args!(
+                "{:?}{} {}{}{}\n",
+                level,
+                TimeFormatter(&self.0),
+                level.to_color(),
+                args,
+                RESET
+            ),
+            &level,
+        );
     }
 
     impl_log_methods! {
@@ -291,25 +297,31 @@ where
 #[cfg(not(feature = "ufmt"))]
 impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
     pub fn log(&mut self, level: StatusLevel, args: impl Debug) {
-        self.1.write_data(format_args!(
-            "{:?}{} {}{:?}{}\n",
-            level,
-            TimeFormatter(&self.0),
-            level.to_color(),
-            args,
-            RESET
-        ));
+        self.1.write_data(
+            format_args!(
+                "{:?}{} {}{:?}{}\n",
+                level,
+                TimeFormatter(&self.0),
+                level.to_color(),
+                args,
+                RESET
+            ),
+            &level,
+        );
     }
 
     pub fn logdisp(&mut self, level: StatusLevel, args: impl Display) {
-        self.1.write_data(format_args!(
-            "{:?}{} {}{}{}\n",
-            level,
-            TimeFormatter(&self.0),
-            level.to_color(),
-            args,
-            RESET
-        ));
+        self.1.write_data(
+            format_args!(
+                "{:?}{} {}{}{}\n",
+                level,
+                TimeFormatter(&self.0),
+                level.to_color(),
+                args,
+                RESET
+            ),
+            &level,
+        );
     }
 
     impl_log_methods! {
