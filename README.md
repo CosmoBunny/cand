@@ -1,4 +1,4 @@
-```markdown
+
 # 🎯 CAND - Colorful And Nice Debugging
 
 > **Beautiful embedded-first Rust logging library for ESP32 to servers with colorful output and zero-panic design.**
@@ -226,4 +226,3 @@ cargo run --example sample
 ## 📄 **License**
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-```
