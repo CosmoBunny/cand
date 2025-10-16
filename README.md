@@ -176,7 +176,7 @@ impl StorageProvider for () {
 | `std` | Standard library support, enables `Instant` time provider | ✅ |
 | `colors` | ANSI color output for beautiful terminal logs | ✅ |
 | `ufmt` | Embedded-friendly formatting with zero allocations, supports both no_std and std | No |
-| `alloc` | Enables Box<dyn Error> for dynamic error handling | No |
+| `alloc` | Enables Box<dyn Error> for dynamic error handling | ✅ |
 
 ## 📊 **Performance**
 
