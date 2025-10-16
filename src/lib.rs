@@ -1,9 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(not(feature = "ufmt"))]
-use core::fmt::Debug;
-#[cfg(not(feature = "ufmt"))]
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
+
 #[cfg(feature = "ufmt")]
 use core::time::Duration;
 
@@ -84,7 +82,6 @@ impl uDebug for StatusLevel {
     }
 }
 
-#[cfg(not(feature = "ufmt"))]
 impl Debug for StatusLevel {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         impl_status_format!(self,f, write,
@@ -98,28 +95,30 @@ impl Debug for StatusLevel {
     }
 }
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+
 #[cfg(feature = "ufmt")]
-pub trait StorageProvider {
+pub trait UStorageProvider {
     fn write_data(&mut self, d: impl uDebug);
 }
 
-#[cfg(not(feature = "ufmt"))]
 use core::fmt::Arguments;
-#[cfg(not(feature = "ufmt"))]
+
 pub trait StorageProvider {
     /// Write log data directly - single responsibility
     fn write_data(&mut self, args: Arguments, debuglevel: &StatusLevel);
 }
 
 #[cfg(feature = "std")]
-#[cfg(not(feature = "ufmt"))]
 impl StorageProvider for () {
     fn write_data(&mut self, args: Arguments<'_>, _debuglevel: &StatusLevel) {
         print!("{args}")
     }
 }
 
-// Your existing traits:
 pub trait TimeProvider {
     fn now() -> Self;
     fn elapsed(&self) -> core::time::Duration;
@@ -153,7 +152,6 @@ impl TimeProvider for () {
     }
 }
 
-#[cfg(not(feature = "ufmt"))]
 macro_rules! impl_log_methods {
     ($($method:ident => $level:expr),* $(,)?) => {
         $(
@@ -166,11 +164,28 @@ macro_rules! impl_log_methods {
 
 macro_rules! impl_try_get {
     ($error_bound:path, owned) => {
-        // For Logger - takes ownership
         #[cfg(feature = "std")]
-        pub fn try_get<O, E: $error_bound>(
+        #[cfg(feature = "ufmt")]
+        pub fn try_get<O>(
             mut self, // Takes ownership
-            tryresult: Result<O, E>,
+            tryresult: Result<O, Box<dyn core::error::Error>>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            match tryresult {
+                Ok(x) => (x, self),
+                Err(err) => {
+                    self.log(StatusLevel::Warning, UDebugStr(&err.to_string()));
+                    redirectfn(self);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        #[cfg(feature = "std")]
+        #[cfg(not(feature = "ufmt"))]
+        pub fn try_get<O>(
+            mut self, // Takes ownership
+            tryresult: Result<O, Box<dyn core::error::Error>>,
             redirectfn: fn(Self) -> (),
         ) -> (O, Self) {
             match tryresult {
@@ -201,11 +216,11 @@ macro_rules! impl_try_get {
     };
 
     ($error_bound:path, cloned) => {
-        // For MultiLogger - needs cloning
         #[cfg(feature = "std")]
-        pub fn try_get<O, E: $error_bound>(
+        #[cfg(not(feature = "ufmt"))]
+        pub fn try_get<O>(
             &mut self, // Takes reference
-            tryresult: Result<O, E>,
+            tryresult: Result<O, Box<dyn core::error::Error>>,
             redirectfn: fn(Self) -> (),
         ) -> (O, Self) {
             let mut new_self = self.clone();
@@ -213,6 +228,23 @@ macro_rules! impl_try_get {
                 Ok(x) => (x, new_self),
                 Err(err) => {
                     new_self.log(StatusLevel::Warning, err);
+                    redirectfn(new_self);
+                    std::process::exit(1);
+                }
+            }
+        }
+        #[cfg(feature = "std")]
+        #[cfg(feature = "ufmt")]
+        pub fn try_get<O>(
+            &mut self, // Takes reference
+            tryresult: Result<O, Box<dyn core::error::Error>>,
+            redirectfn: fn(Self) -> (),
+        ) -> (O, Self) {
+            let mut new_self = self.clone();
+            match tryresult {
+                Ok(x) => (x, new_self),
+                Err(err) => {
+                    new_self.log(StatusLevel::Warning, UDebugStr(&err.to_string()));
                     redirectfn(new_self);
                     std::process::exit(1);
                 }
@@ -238,13 +270,11 @@ macro_rules! impl_try_get {
     };
 }
 
-/// Same as Logger but Clonable for tryrun
 #[derive(Clone)]
 pub struct MultiLogger<T: TimeProvider + Clone, S: StorageProvider + Clone>(pub T, pub S);
 
 pub struct Logger<T: TimeProvider, S: StorageProvider>(pub T, pub S);
 
-#[cfg(not(feature = "ufmt"))]
 impl<'a, T: TimeProvider + Clone, S: StorageProvider + Clone> MultiLogger<T, S>
 where
     Self: Clone,
@@ -284,8 +314,15 @@ where
         log_info => StatusLevel::Info,
     }
 
+    #[cfg(feature = "alloc")]
+    pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
+        }
+    }
+
+    #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
-        // Returns nothing
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
         }
@@ -294,7 +331,6 @@ where
     impl_try_get!(core::fmt::Debug, cloned);
 }
 
-#[cfg(not(feature = "ufmt"))]
 impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
     pub fn log(&mut self, level: StatusLevel, args: impl Debug) {
         self.1.write_data(
@@ -331,8 +367,15 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         log_info => StatusLevel::Info,
     }
 
+    #[cfg(feature = "alloc")]
+    pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
+        }
+    }
+
+    #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
-        // Returns nothing
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
         }
@@ -341,11 +384,8 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
     impl_try_get!(core::fmt::Debug, owned);
 }
 
-// Helper struct to use TimeProvider's write method with Display trait
-#[cfg(not(feature = "ufmt"))]
 struct TimeFormatter<'a, T: TimeProvider>(&'a T);
 
-#[cfg(not(feature = "ufmt"))]
 impl<'a, T: TimeProvider> core::fmt::Display for TimeFormatter<'a, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.write(f)
@@ -354,6 +394,14 @@ impl<'a, T: TimeProvider> core::fmt::Display for TimeFormatter<'a, T> {
 
 #[cfg(feature = "ufmt")]
 pub struct UDebugStr<'a>(pub &'a str);
+
+#[cfg(feature = "ufmt")]
+impl<'a> Debug for UDebugStr<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)?;
+        Ok(())
+    }
+}
 
 #[cfg(feature = "ufmt")]
 impl<'a> uDebug for UDebugStr<'a> {
@@ -383,31 +431,24 @@ impl uDebug for UDebugDuration {
         let secs = self.0.as_secs();
 
         if nanos < 1_000 {
-            // Nanoseconds: 0-999ns
             uwrite!(f, "{}ns", nanos as u32)
         } else if micros < 1_000 {
-            // Microseconds: 1-999μs
             uwrite!(f, "{}μs", micros as u32)
         } else if millis < 1_000 {
-            // Milliseconds: 1-999ms
             uwrite!(f, "{}ms", millis as u32)
         } else if secs < 60 {
-            // Seconds: 1.000s - 59.999s
             let remaining_millis = (millis % 1000) as u32;
             uwrite!(f, "{}.{}s", secs, remaining_millis)
         } else if secs < 3600 {
-            // Minutes: 1:00 - 59:59
             let mins = secs / 60;
             let remaining_secs = secs % 60;
             uwrite!(f, "{}:{}min", mins, remaining_secs)
         } else if secs < 86400 {
-            // Hours: 1:00:00 - 23:59:59
             let hours = secs / 3600;
             let mins = (secs % 3600) / 60;
             let remaining_secs = secs % 60;
             uwrite!(f, "{}:{}:{}", hours, mins, remaining_secs)
         } else {
-            // Days: 1d, 1d2h, etc.
             let days = secs / 86400;
             let hours = (secs % 86400) / 3600;
             if hours > 0 {
@@ -430,12 +471,41 @@ macro_rules! impl_log_methods_ufmt {
     };
 }
 
+#[cfg(feature = "std")]
 #[cfg(feature = "ufmt")]
-impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
+struct StdWriter<'a>(&'a mut dyn std::io::Write);
+
+#[cfg(feature = "std")]
+#[cfg(feature = "ufmt")]
+impl<'a> uWrite for StdWriter<'a> {
+    type Error = ();
+    fn write_str(&mut self, s: &str) -> Result<(), ()> {
+        self.0.write_all(s.as_bytes()).map_err(|_| ())
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg(feature = "ufmt")]
+impl UStorageProvider for () {
+    fn write_data(&mut self, d: impl uDebug) {
+        use std::io::{self};
+        let mut stdout = io::stdout();
+        let mut writer = StdWriter(&mut stdout);
+        let _ = d.fmt(&mut ufmt::Formatter::new(&mut writer));
+    }
+}
+
+#[cfg(feature = "ufmt")]
+pub struct ULogger<T: TimeProvider, S: UStorageProvider>(pub T, pub S);
+
+#[cfg(feature = "ufmt")]
+#[derive(Clone)]
+pub struct MultiULogger<T: TimeProvider + Clone, S: UStorageProvider + Clone>(pub T, pub S);
+
+#[cfg(feature = "ufmt")]
+impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
     pub fn log(&mut self, level: StatusLevel, args: impl uDebug) {
         let timestamp = self.0.elapsed();
-        // Format timestamp and level + args + write to store_log
-
         self.1.write_data(level);
         self.1.write_data(UDebugDuration(timestamp));
         self.1.write_data(UDebugStr(level.to_color()));
@@ -446,11 +516,10 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
 
     pub fn logdisp(&mut self, level: StatusLevel, args: &str) {
         let timestamp = self.0.elapsed();
-
         self.1.write_data(level);
         self.1.write_data(UDebugDuration(timestamp));
         self.1.write_data(UDebugStr(level.to_color()));
-        self.1.write_data(UDebugStr(args)); // Clean string, no quotes
+        self.1.write_data(UDebugStr(args));
         self.1.write_data(UDebugStr(RESET));
         self.1.write_data(UDebugStr("\n"));
     }
@@ -462,8 +531,24 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         log_info => StatusLevel::Info,
     }
 
+    #[cfg(feature = "alloc")]
+    #[cfg(not(feature = "ufmt"))]
+    pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, err);
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[cfg(feature = "ufmt")]
+    pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
+        if let Err(err) = tryresult {
+            self.log(StatusLevel::Error, UDebugStr(&err.to_string()));
+        }
+    }
+
+    #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>) {
-        // Returns nothing
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
         }
@@ -471,15 +556,14 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
 
     impl_try_get!(ufmt::uDebug, owned);
 }
+
 #[cfg(feature = "ufmt")]
-impl<'a, T: TimeProvider + Clone, S: StorageProvider + Clone> MultiLogger<T, S>
+impl<T: TimeProvider + Clone, S: UStorageProvider + Clone> MultiULogger<T, S>
 where
     Self: Clone,
 {
     pub fn log(&mut self, level: StatusLevel, args: impl uDebug) {
         let timestamp = self.0.elapsed();
-        // Format timestamp and level + args + write to store_log
-
         self.1.write_data(level);
         self.1.write_data(UDebugDuration(timestamp));
         self.1.write_data(UDebugStr(level.to_color()));
@@ -490,11 +574,10 @@ where
 
     pub fn logdisp(&mut self, level: StatusLevel, args: &str) {
         let timestamp = self.0.elapsed();
-
         self.1.write_data(level);
         self.1.write_data(UDebugDuration(timestamp));
         self.1.write_data(UDebugStr(level.to_color()));
-        self.1.write_data(UDebugStr(args)); // Clean string, no quotes
+        self.1.write_data(UDebugStr(args));
         self.1.write_data(UDebugStr(RESET));
         self.1.write_data(UDebugStr("\n"));
     }
@@ -506,12 +589,136 @@ where
         log_info => StatusLevel::Info,
     }
 
-    pub fn try_run<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>) {
-        // Returns nothing
+    #[cfg(feature = "alloc")]
+    pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
         if let Err(err) = tryresult {
-            self.log(StatusLevel::Error, err);
+            self.log(StatusLevel::Error, UDebugStr(&err.to_string()));
         }
     }
 
     impl_try_get!(ufmt::uDebug, cloned);
+}
+
+#[macro_export]
+macro_rules! black_box_cand {
+    () => {
+        #[cfg(feature = "std")]
+        #[cfg(not(feature = "ufmt"))]
+        {
+            ::std::panic::set_hook(Box::new(|info| {
+                let mut logger = $crate::Logger(::std::time::Instant::now(), ());
+                let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
+                    *s
+                } else if let Some(s) = info.payload().downcast_ref::<String>() {
+                    s.as_str()
+                } else {
+                    "unknown panic payload"
+                };
+                let (before, after) = if let Some(pos) = payload.find(": ") {
+                    (&payload[0..pos + 2], &payload[pos + 2..])
+                } else {
+                    (payload, "")
+                };
+                let message = if let Some(location) = info.location() {
+                    format!(
+                        "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                        location.file(),
+                        location.line(),
+                        location.column(),
+                        before,
+                        after
+                    )
+                } else {
+                    format!(
+                        "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                        before, after
+                    )
+                };
+                #[cfg(not(feature = "ufmt"))]
+                logger.logdisp($crate::StatusLevel::Critical, &message);
+                #[cfg(feature = "ufmt")]
+                logger.logdisp($crate::StatusLevel::Critical, &message);
+            }));
+        }
+    };
+    ($logger:expr) => {
+        #[cfg(feature = "std")]
+        #[cfg(feature = "alloc")]
+        {
+            let mut cloned_logger = $logger.clone();
+            ::std::panic::set_hook(Box::new(move |info| {
+                let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
+                    *s
+                } else if let Some(s) = info.payload().downcast_ref::<alloc::string::String>() {
+                    s.as_str()
+                } else {
+                    "unknown panic payload"
+                };
+                let (before, after) = if let Some(pos) = payload.find(": ") {
+                    (&payload[0..pos + 2], &payload[pos + 2..])
+                } else {
+                    (payload, "")
+                };
+                let message = if let Some(location) = info.location() {
+                    format!(
+                        "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                        location.file(),
+                        location.line(),
+                        location.column(),
+                        before,
+                        after
+                    )
+                } else {
+                    format!(
+                        "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                        before, after
+                    )
+                };
+                #[cfg(not(feature = "ufmt"))]
+                cloned_logger.logdisp($crate::StatusLevel::Critical, &message);
+                #[cfg(feature = "ufmt")]
+                cloned_logger.logdisp($crate::StatusLevel::Critical, &message);
+            }));
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            use core::sync::atomic::{AtomicPtr, Ordering};
+            static LOGGER_PTR: AtomicPtr<()> = AtomicPtr::new(core::ptr::null_mut());
+            let mut logger = $logger;
+            LOGGER_PTR.store(&mut logger as *mut _ as *mut (), Ordering::Relaxed);
+            #[panic_handler]
+            fn panic(info: &core::panic::PanicInfo) -> ! {
+                let logger_ptr = LOGGER_PTR.load(Ordering::Relaxed);
+                if !logger_ptr.is_null() {
+                    unsafe {
+                        let logger: &mut $crate::Logger<_, _> =
+                            &mut *(logger_ptr as *mut $crate::Logger<_, _>);
+                        #[cfg(not(feature = "ufmt"))]
+                        logger.logdisp($crate::StatusLevel::Critical, info);
+                        #[cfg(feature = "ufmt")]
+                        {
+                            logger.logdisp($crate::StatusLevel::Critical, "Panic occurred");
+                            if let Some(loc) = info.location() {
+                                logger.logdisp($crate::StatusLevel::Critical, loc.file());
+                                logger.log($crate::StatusLevel::Critical, loc.line());
+                                logger.log($crate::StatusLevel::Critical, loc.column());
+                            }
+                            // Attempt to log payload if &str or String
+                            use core::any::Any;
+                            if let Some(s) =
+                                (info.payload() as &dyn Any).downcast_ref::<&'static str>()
+                            {
+                                logger.logdisp($crate::StatusLevel::Critical, s);
+                            } else if let Some(s) =
+                                (info.payload() as &dyn Any).downcast_ref::<alloc::string::String>()
+                            {
+                                logger.logdisp($crate::StatusLevel::Critical, s);
+                            }
+                        }
+                    }
+                }
+                loop {}
+            }
+        }
+    };
 }

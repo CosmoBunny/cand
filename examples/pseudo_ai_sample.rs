@@ -57,7 +57,7 @@ fn ai_generated_showcase() {
     let ai_error = ai_generator.simulate_intelligent_error();
 
     #[cfg(feature = "std")]
-    let (_, mut logger) = logger.try_get::<(), String>(Err(ai_error.clone()), recovery_handler); // Use fn pointer
+    let (_, mut logger) = logger.try_get::<()>(Err(ai_error.clone().into()), recovery_handler); // Use fn pointer
     println!();
 
     // 📊 **AI Performance Insights**

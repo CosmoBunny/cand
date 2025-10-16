@@ -1,6 +1,6 @@
 [package]
 name = "cand"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 readme = "README.md"
 description = "Beautiful embedded-first Rust logging library for ESP32 to servers with colorful output and zero-panic design."
@@ -12,10 +12,16 @@ categories = ["embedded", "development-tools::debugging"]
 [dependencies]
 ufmt = { version = "0.2", optional = true }
 
+[dev-dependencies]
+reqwest = "0.12.*"
+tokio = { version = "1.48.*", features = ["full"]}
+tokio-macros = "2.6.*"
+
 [features]
-default = ["std","colors"]
+default = ["std","colors", "alloc"]
 
 std = []
+alloc = []
 colors = []
 ufmt = ["dep:ufmt"]
 

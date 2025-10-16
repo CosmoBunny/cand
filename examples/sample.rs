@@ -1,5 +1,7 @@
 //! CAND Banner Demo for Terminal Screenshots
 
+use std::error::Error;
+
 use cand::Logger;
 
 fn main() {
@@ -46,10 +48,9 @@ fn showcase_cand() {
 
     // 💡 **Error recovery showcase**
     logger.log_info("🛡️  Error Recovery Demo:");
-    let sensor_result: Result<f32, &str> = Err("sensor disconnected");
 
     #[cfg(feature = "std")]
-    let (_, mut logger) = logger.try_get(sensor_result, |mut logger| {
+    let (_, mut logger) = logger.try_get(sensor_result(), |mut logger| {
         logger.log_warn("  🔄 Auto-recovery initiated");
         logger.log_info("  💾 Switching to backup sensor");
         logger.log_ok("  ✅ Failover complete");
@@ -72,4 +73,8 @@ fn showcase_cand() {
     // ✨ **Closing**
     logger.log_ok("✨ Make your debugging colorful and nice with CAND! ✨");
     logger.log_info("📖 https://github.com/CosmoBunny/cand");
+}
+
+fn sensor_result() -> Result<f32, Box<dyn Error>> {
+    Err("sensor disconnected")?
 }

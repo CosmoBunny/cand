@@ -4,7 +4,7 @@ use cand::Logger;
 
 fn main() {
     let logger = Logger(Instant::now(), ());
-    let ((), mut logger) = logger.try_get(Err("Error line"), redirect);
+    let ((), mut logger) = logger.try_get(Err("Error line".into()), redirect);
     logger.log(cand::StatusLevel::Ok, "Run very well");
 }
 

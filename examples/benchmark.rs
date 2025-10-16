@@ -11,5 +11,8 @@ fn main() {
         logger.log_info(format!("Logger no: {}", i));
     }
 
-    logger.log_ok(format_args!("Time taken in {:?}", time.elapsed()));
+    logger.log_ok(format_args!(
+        "Time taken in {:?} to log info 1_000_000",
+        time.elapsed()
+    ));
 }

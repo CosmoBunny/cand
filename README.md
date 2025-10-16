@@ -1,3 +1,4 @@
+```markdown
 # 🎯 CAND - Colorful And Nice Debugging
 
 > **Beautiful embedded-first Rust logging library for ESP32 to servers with colorful output and zero-panic design.**
@@ -20,7 +21,7 @@
 
 ```toml
 [dependencies]
-cand = "0.2.1"
+cand = "0.2.2"
 ```
 
 ```rust
@@ -42,9 +43,38 @@ fn main() {
 
 ```toml
 [dependencies]
-cand = { version = "0.2.1", default-feature=false, features=["colors"] }
+cand = { version = "0.2.2", default-feature=false, features=["colors"] }
 ```
 
+### **Embedded/ESP32 with alloc but no_std**
+
+```toml
+[dependencies]
+cand = { version = "0.2.2", default-feature=false, features=["colors", "alloc"] }
+```
+
+```rust
+use cand::{ULogger, UStorageProvider};
+
+struct UartStorage {
+  // Serial can be from any MCU serial
+  serial: Serial 
+};
+
+impl UStorageProvider for UartStorage {
+  fn write_data(&mut self, d: impl ufmt::uDebug) {
+    // Write to UART, RTT, or any embedded output
+    ufmt::uwrite!(&mut self.serial, "{:?}", d).ok();
+  }
+}
+
+fn main() {
+  let mut logger = ULogger((), UartStorage { serial: ... });
+    
+  logger.log_ok("🚀 Device initialized!");
+  logger.log_info("📡 Connected to network");
+}
+```
 
 ## 🎨 **Beautiful Output**
 
@@ -84,7 +114,36 @@ fn main() {
 
 ```
 
-### **Embedded UART**
+## 🛡️ **Panic Handling with black_box_cand**
+
+CAND provides a macro to set up a panic handler that logs panics using the logger, ensuring even panics are captured gracefully.
+
+```rust
+use cand::{black_box_cand, Logger};
+
+fn main() {
+  black_box_cand!(); // Uses default logger for std environments
+
+  let custom_tp = TimeProvider1::new();
+  let custom_sp = StorageProvider1::new();
+  // Or with custom logger
+  let logger = Logger(custom_tp, custom_sp);
+  black_box_cand!(logger);
+
+  panic!("This will be logged at critical level");
+}
+```
+
+For no_std environments, the macro sets a panic_handler that logs to the provided logger.
+
+## 🔌 **Custom Storage Providers**
+
+### **Embedded UART with ufmt**
+
+```toml
+[dependencies]
+cand = { version = "0.2.2", default-feature=false, features=["colors", "ufmt"] }
+```
 
 ```rust
 struct UartStorage{
@@ -92,7 +151,7 @@ struct UartStorage{
   serial: Serial 
 };
 
-impl StorageProvider for UartStorage {
+impl UStorageProvider for UartStorage {
   fn write_data(&mut self, d: impl ufmt::uDebug) {
     // Write to UART, RTT, or any embedded output
     ufmt::uwrite!(self.serial,"{:?}", d);
@@ -100,6 +159,15 @@ impl StorageProvider for UartStorage {
 }
 ```
 
+### **Standard Output with fmt**
+
+```rust
+impl StorageProvider for () {
+  fn write_data(&mut self, args: Arguments<'_>, _debuglevel: &StatusLevel) {
+    print!("{args}")
+  }
+}
+```
 
 ## 🎛️ **Feature Flags**
 
@@ -107,24 +175,37 @@ impl StorageProvider for UartStorage {
 | :-- | :-- | :-- |
 | `std` | Standard library support, enables `Instant` time provider | ✅ |
 | `colors` | ANSI color output for beautiful terminal logs | ✅ |
-| `ufmt` | Embedded-friendly formatting with zero allocations | No |
-
+| `ufmt` | Embedded-friendly formatting with zero allocations, supports both no_std and std | No |
+| `alloc` | Enables Box<dyn Error> for dynamic error handling | No |
 
 ## 📊 **Performance**
 
 - **⚡ Zero allocations** with `ufmt` feature
-- **🚀 1_000_000 logs in 4.2s** on example benchmark with decent release
+- **🚀 1_000_000 logs in 4.2s (for alloc takes 5.1s)** on example benchmark with decent release
 
 ## 🏗️ **API Reference**
 
 ### **Core Types**
 
 ```rust
-// Make sure Type should TimeProvider or StorageProvider
-// Main logger with time and storage providers
+// Standard fmt-based logger
 pub struct Logger<T: TimeProvider, S: StorageProvider>(pub T, pub S);
 
+// Clonable version for multi-threaded use
+pub struct MultiLogger<T: TimeProvider + Clone, S: StorageProvider + Clone>(pub T, pub S);
+
+// ufmt-based logger (requires "ufmt" feature)
+pub struct ULogger<T: TimeProvider, S: UStorageProvider>(pub T, pub S);
+
+// Clonable ufmt-based logger
+pub struct MultiULogger<T: TimeProvider + Clone, S: UStorageProvider + Clone>(pub T, pub S);
 ```
+
+### **Traits**
+
+- `TimeProvider`: For timestamping logs (e.g., `Instant` or custom)
+- `StorageProvider`: For fmt-based output destinations
+- `UStorageProvider`: For ufmt-based output destinations
 
 ## 🧪 **Examples**
 
@@ -133,6 +214,8 @@ Check out the [examples](examples/) directory:
 - **[`basic_error_handling`](examples/basic_error_handling.rs)** - Error recovery patterns
 - **[`sample`](examples/sample.rs)** - Feature showcase and demo
 - **[`benchmark`](examples/benchmark.rs)** - Benchmark of 1_000_000 logs print
+- **[`errorcand`](examples/errorcand.rs)** - Advanced error handling with try_get and try_run
+- **[`paniccand`](examples/paniccand.rs)** - Panic handling demonstration with black_box_cand
 
 Run examples:
 
@@ -143,3 +226,4 @@ cargo run --example sample
 ## 📄 **License**
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+```
