@@ -599,126 +599,114 @@ where
     impl_try_get!(ufmt::uDebug, cloned);
 }
 
+#[cfg(feature = "std")]
 #[macro_export]
 macro_rules! black_box_cand {
     () => {
-        #[cfg(feature = "std")]
-        #[cfg(not(feature = "ufmt"))]
-        {
-            ::std::panic::set_hook(Box::new(|info| {
-                let mut logger = $crate::Logger(::std::time::Instant::now(), ());
-                let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
-                    *s
-                } else if let Some(s) = info.payload().downcast_ref::<String>() {
-                    s.as_str()
-                } else {
-                    "unknown panic payload"
-                };
-                let (before, after) = if let Some(pos) = payload.find(": ") {
-                    (&payload[0..pos + 2], &payload[pos + 2..])
-                } else {
-                    (payload, "")
-                };
-                let message = if let Some(location) = info.location() {
-                    format!(
-                        "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
-                        location.file(),
-                        location.line(),
-                        location.column(),
-                        before,
-                        after
-                    )
-                } else {
-                    format!(
-                        "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
-                        before, after
-                    )
-                };
-                #[cfg(not(feature = "ufmt"))]
-                logger.logdisp($crate::StatusLevel::Critical, &message);
-                #[cfg(feature = "ufmt")]
-                logger.logdisp($crate::StatusLevel::Critical, &message);
-            }));
-        }
+        ::std::panic::set_hook(Box::new(|info| {
+            let mut logger = $crate::Logger(::std::time::Instant::now(), ());
+            let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
+                *s
+            } else if let Some(s) = info.payload().downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "unknown panic payload"
+            };
+            let (before, after) = if let Some(pos) = payload.find(": ") {
+                (&payload[0..pos + 2], &payload[pos + 2..])
+            } else {
+                ("", payload)
+            };
+            let message = if let Some(location) = info.location() {
+                format!(
+                    "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    location.file(),
+                    location.line(),
+                    location.column(),
+                    before,
+                    after
+                )
+            } else {
+                format!(
+                    "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    before, after
+                )
+            };
+            logger.logdisp($crate::StatusLevel::Critical, &message);
+        }));
     };
+
+    ($logger_expr:expr) => {
+        ::std::panic::set_hook(Box::new(|info| {
+            let mut logger = $logger_expr;
+            let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
+                *s
+            } else if let Some(s) = info.payload().downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "unknown panic payload"
+            };
+            let (before, after) = if let Some(pos) = payload.find(": ") {
+                (&payload[0..pos + 2], &payload[pos + 2..])
+            } else {
+                ("", payload)
+            };
+            let message = if let Some(location) = info.location() {
+                format!(
+                    "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    location.file(),
+                    location.line(),
+                    location.column(),
+                    before,
+                    after
+                )
+            } else {
+                format!(
+                    "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    before, after
+                )
+            };
+            logger.logdisp($crate::StatusLevel::Critical, &message);
+        }))
+    };
+}
+
+#[cfg(feature = "std")]
+#[macro_export]
+macro_rules! black_box_cand_global {
     ($logger:expr) => {
-        #[cfg(feature = "std")]
-        #[cfg(feature = "alloc")]
-        {
-            let mut cloned_logger = $logger.clone();
-            ::std::panic::set_hook(Box::new(move |info| {
-                let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
-                    *s
-                } else if let Some(s) = info.payload().downcast_ref::<alloc::string::String>() {
-                    s.as_str()
-                } else {
-                    "unknown panic payload"
-                };
-                let (before, after) = if let Some(pos) = payload.find(": ") {
-                    (&payload[0..pos + 2], &payload[pos + 2..])
-                } else {
-                    (payload, "")
-                };
-                let message = if let Some(location) = info.location() {
-                    format!(
-                        "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
-                        location.file(),
-                        location.line(),
-                        location.column(),
-                        before,
-                        after
-                    )
-                } else {
-                    format!(
-                        "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
-                        before, after
-                    )
-                };
-                #[cfg(not(feature = "ufmt"))]
-                cloned_logger.logdisp($crate::StatusLevel::Critical, &message);
-                #[cfg(feature = "ufmt")]
-                cloned_logger.logdisp($crate::StatusLevel::Critical, &message);
-            }));
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            use core::sync::atomic::{AtomicPtr, Ordering};
-            static LOGGER_PTR: AtomicPtr<()> = AtomicPtr::new(core::ptr::null_mut());
-            let mut logger = $logger;
-            LOGGER_PTR.store(&mut logger as *mut _ as *mut (), Ordering::Relaxed);
-            #[panic_handler]
-            fn panic(info: &core::panic::PanicInfo) -> ! {
-                let logger_ptr = LOGGER_PTR.load(Ordering::Relaxed);
-                if !logger_ptr.is_null() {
-                    unsafe {
-                        let logger: &mut $crate::Logger<_, _> =
-                            &mut *(logger_ptr as *mut $crate::Logger<_, _>);
-                        #[cfg(not(feature = "ufmt"))]
-                        logger.logdisp($crate::StatusLevel::Critical, info);
-                        #[cfg(feature = "ufmt")]
-                        {
-                            logger.logdisp($crate::StatusLevel::Critical, "Panic occurred");
-                            if let Some(loc) = info.location() {
-                                logger.logdisp($crate::StatusLevel::Critical, loc.file());
-                                logger.log($crate::StatusLevel::Critical, loc.line());
-                                logger.log($crate::StatusLevel::Critical, loc.column());
-                            }
-                            // Attempt to log payload if &str or String
-                            use core::any::Any;
-                            if let Some(s) =
-                                (info.payload() as &dyn Any).downcast_ref::<&'static str>()
-                            {
-                                logger.logdisp($crate::StatusLevel::Critical, s);
-                            } else if let Some(s) =
-                                (info.payload() as &dyn Any).downcast_ref::<alloc::string::String>()
-                            {
-                                logger.logdisp($crate::StatusLevel::Critical, s);
-                            }
-                        }
-                    }
-                }
-                loop {}
+        let mut logger = $logger;
+        ::std::panic::set_hook(Box::new(move |info| {
+            let payload = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
+                *s
+            } else if let Some(s) = info.payload().downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                "unknown panic payload"
+            };
+            let (before, after) = if let Some(pos) = payload.find(": ") {
+                (&payload[0..pos + 2], &payload[pos + 2..])
+            } else {
+                ("", payload)
+            };
+            let message = if let Some(location) = info.location() {
+                format!(
+                    "\x1b[0mpanicked at {}:{}:{}:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    location.file(),
+                    location.line(),
+                    location.column(),
+                    before,
+                    after
+                )
+            } else {
+                format!(
+                    "\x1b[0mpanicked at unknown location:\n\x1b[0m{}\x1b[31m{}\x1b[0m",
+                    before, after
+                )
+            };
+            if let Ok(mut guard) = logger.lock() {
+                guard.logdisp(cand::StatusLevel::Critical, &message);
             }
-        }
+        }));
     };
 }
