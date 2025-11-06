@@ -168,7 +168,7 @@ macro_rules! impl_try_get {
         #[cfg(feature = "ufmt")]
         pub fn try_get<O>(
             mut self, // Takes ownership
-            tryresult: Result<O, Box<dyn core::error::Error>>,
+            tryresult: Result<O, E: Debug>,
             redirectfn: fn(Self) -> (),
         ) -> (O, Self) {
             match tryresult {
@@ -320,11 +320,29 @@ where
             self.log(StatusLevel::Error, err);
         }
     }
+    #[cfg(feature = "alloc")]
+    pub fn try_run_get<O>(
+        &mut self,
+        tryresult: Result<O, Box<dyn core::error::Error>>,
+        value: fn(O),
+    ) {
+        match tryresult {
+            Ok(ok) => value(ok),
+            Err(err) => self.log(StatusLevel::Error, err),
+        }
+    }
 
     #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
+        }
+    }
+    #[cfg(not(feature = "alloc"))]
+    pub fn try_run_get<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+        match tryresult {
+            Ok(ok) => value(ok),
+            Err(err) => self.log(StatusLevel::Error, err),
         }
     }
 
@@ -373,11 +391,29 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
             self.log(StatusLevel::Error, err);
         }
     }
+    #[cfg(feature = "alloc")]
+    pub fn try_run_get<O>(
+        &mut self,
+        tryresult: Result<O, Box<dyn core::error::Error>>,
+        value: fn(O),
+    ) {
+        match tryresult {
+            Ok(ok) => value(ok),
+            Err(err) => self.log(StatusLevel::Error, err),
+        }
+    }
 
     #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>) {
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
+        }
+    }
+    #[cfg(not(feature = "alloc"))]
+    pub fn try_run_get<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+        match tryresult {
+            Ok(ok) => value(ok),
+            Err(err) => self.log(StatusLevel::Error, err),
         }
     }
 
@@ -540,6 +576,19 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
     }
 
     #[cfg(feature = "alloc")]
+    #[cfg(not(feature = "ufmt"))]
+    pub fn try_run_get<O>(
+        &mut self,
+        tryresult: Result<O, Box<dyn core::error::Error>>,
+        value: fn(O),
+    ) {
+        match tryresult {
+            Ok(ok) => value(ok),
+            Err(err) => self.log(StatusLevel::Error, err),
+        }
+    }
+
+    #[cfg(feature = "alloc")]
     #[cfg(feature = "ufmt")]
     pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
         if let Err(err) = tryresult {
@@ -547,10 +596,34 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
         }
     }
 
+    #[cfg(feature = "alloc")]
+    #[cfg(feature = "ufmt")]
+    pub fn try_run_get<O>(
+        &mut self,
+        tryresult: Result<O, Box<dyn core::error::Error>>,
+        value: fn(O),
+    ) {
+        if let Err(err) = tryresult {
+            match tryresult {
+                Ok(ok) => value(ok),
+                Err(err) => self.log(StatusLevel::Error, UDebugStr(&err.to_string())),
+            }
+        }
+    }
+
     #[cfg(not(feature = "alloc"))]
     pub fn try_run<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>) {
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, err);
+        }
+    }
+    #[cfg(not(feature = "alloc"))]
+    pub fn try_run_get<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+        if let Err(err) = tryresult {
+            match tryresult {
+                Ok(ok) => value(ok),
+                Err(err) => self.log(StatusLevel::Error, err),
+            }
         }
     }
 
@@ -593,6 +666,18 @@ where
     pub fn try_run<O>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>) {
         if let Err(err) = tryresult {
             self.log(StatusLevel::Error, UDebugStr(&err.to_string()));
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    pub fn try_run_get<O>(
+        &mut self,
+        tryresult: Result<O, Box<dyn core::error::Error>>,
+        value: fn(O),
+    ) {
+        match tryresult {
+            Ok(ok) => value(o),
+            Err(err) => self.log(StatusLevel::Error, UDebugStr(&err.to_string())),
         }
     }
 
