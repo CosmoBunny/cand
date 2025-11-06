@@ -21,7 +21,7 @@
 
 ```toml
 [dependencies]
-cand = "0.2.3"
+cand = "0.3.1"
 ```
 
 ```rust
@@ -43,14 +43,14 @@ fn main() {
 
 ```toml
 [dependencies]
-cand = { version = "0.2.3", default-feature=false, features=["colors"] }
+cand = { version = "0.3.1", default-feature=false, features=["colors"] }
 ```
 
 ### **Embedded/ESP32 with alloc but no_std**
 
 ```toml
 [dependencies]
-cand = { version = "0.2.3", default-feature=false, features=["colors", "alloc"] }
+cand = { version = "0.3.1", default-feature=false, features=["colors", "alloc"] }
 ```
 
 ```rust
@@ -142,7 +142,7 @@ For no_std environments, the macro sets a panic_handler that logs to the provide
 
 ```toml
 [dependencies]
-cand = { version = "0.2.3", default-feature=false, features=["colors", "ufmt"] }
+cand = { version = "0.3.1", default-feature=false, features=["colors", "ufmt"] }
 ```
 
 ```rust

@@ -324,7 +324,7 @@ where
     pub fn try_run_get<O>(
         &mut self,
         tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O),
+        value: fn(O) -> (),
     ) {
         match tryresult {
             Ok(ok) => value(ok),
@@ -339,7 +339,11 @@ where
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+    pub fn try_run_get<O, E: core::fmt::Debug>(
+        &mut self,
+        tryresult: Result<O, E>,
+        value: fn(O) -> (),
+    ) {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -395,7 +399,7 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
     pub fn try_run_get<O>(
         &mut self,
         tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O),
+        value: fn(O) -> (),
     ) {
         match tryresult {
             Ok(ok) => value(ok),
@@ -410,7 +414,11 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: core::fmt::Debug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+    pub fn try_run_get<O, E: core::fmt::Debug>(
+        &mut self,
+        tryresult: Result<O, E>,
+        value: fn(O) -> (),
+    ) {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -580,7 +588,7 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
     pub fn try_run_get<O>(
         &mut self,
         tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O),
+        value: fn(O) -> (),
     ) {
         match tryresult {
             Ok(ok) => value(ok),
@@ -601,7 +609,7 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
     pub fn try_run_get<O>(
         &mut self,
         tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O),
+        value: fn(O) -> (),
     ) {
         if let Err(err) = tryresult {
             match tryresult {
@@ -618,7 +626,7 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>, value: fn(O)) {
+    pub fn try_run_get<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>, value: fn(O) -> ()) {
         if let Err(err) = tryresult {
             match tryresult {
                 Ok(ok) => value(ok),
@@ -673,7 +681,7 @@ where
     pub fn try_run_get<O>(
         &mut self,
         tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O),
+        value: fn(O) -> (),
     ) {
         match tryresult {
             Ok(ok) => value(o),
