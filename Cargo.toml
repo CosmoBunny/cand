@@ -1,6 +1,6 @@
 [package]
 name = "cand"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2024"
 readme = "README.md"
 description = "Beautiful embedded-first Rust logging library for ESP32 to servers with colorful output and zero-panic design."
