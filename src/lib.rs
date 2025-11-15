@@ -321,11 +321,10 @@ where
         }
     }
     #[cfg(feature = "alloc")]
-    pub fn try_run_get<O>(
-        &mut self,
-        tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, F>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>, value: F)
+    where
+        F: FnOnce(O),
+    {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -339,11 +338,10 @@ where
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: core::fmt::Debug>(
-        &mut self,
-        tryresult: Result<O, E>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, E: core::fmt::Debug, F>(&mut self, tryresult: Result<O, E>, value: F)
+    where
+        F: FnOnce(O),
+    {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -396,11 +394,10 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         }
     }
     #[cfg(feature = "alloc")]
-    pub fn try_run_get<O>(
-        &mut self,
-        tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, F>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>, value: F)
+    where
+        F: FnOnce(O),
+    {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -414,11 +411,10 @@ impl<'a, T: TimeProvider, S: StorageProvider> Logger<T, S> {
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: core::fmt::Debug>(
-        &mut self,
-        tryresult: Result<O, E>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, E: core::fmt::Debug, F>(&mut self, tryresult: Result<O, E>, value: F)
+    where
+        F: FnOnce(O),
+    {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -585,11 +581,10 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
 
     #[cfg(feature = "alloc")]
     #[cfg(not(feature = "ufmt"))]
-    pub fn try_run_get<O>(
-        &mut self,
-        tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, F>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>, value: F)
+    where
+        F: FnOnce(O),
+    {
         match tryresult {
             Ok(ok) => value(ok),
             Err(err) => self.log(StatusLevel::Error, err),
@@ -606,11 +601,10 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
 
     #[cfg(feature = "alloc")]
     #[cfg(feature = "ufmt")]
-    pub fn try_run_get<O>(
-        &mut self,
-        tryresult: Result<O, Box<dyn core::error::Error>>,
-        value: fn(O) -> (),
-    ) {
+    pub fn try_run_get<O, F>(&mut self, tryresult: Result<O, Box<dyn core::error::Error>>, value: F)
+    where
+        F: FnOnce(O),
+    {
         if let Err(err) = tryresult {
             match tryresult {
                 Ok(ok) => value(ok),
@@ -626,7 +620,10 @@ impl<T: TimeProvider, S: UStorageProvider> ULogger<T, S> {
         }
     }
     #[cfg(not(feature = "alloc"))]
-    pub fn try_run_get<O, E: ufmt::uDebug>(&mut self, tryresult: Result<O, E>, value: fn(O) -> ()) {
+    pub fn try_run_get<O, E: ufmt::uDebug, F>(&mut self, tryresult: Result<O, E>, value: F)
+    where
+        F: FnOnce(O),
+    {
         if let Err(err) = tryresult {
             match tryresult {
                 Ok(ok) => value(ok),
